@@ -228,6 +228,8 @@ vnpy.alpha模块的设计理念受到[Qlib](https://github.com/microsoft/qlib)�
 
 ## 安装步骤
 
+### 方式一：使用安装脚本（推荐）
+
 在[这里](https://github.com/vnpy/vnpy/releases)下载Release发布版本，解压后运行以下命令安装：
 
 **Windows**
@@ -246,6 +248,31 @@ bash install.sh
 
 ```
 bash install_osx.sh
+```
+
+### 方式二：使用uv快速安装
+
+[uv](https://docs.astral.sh/uv/)是一个极快的Python包管理器，可以大幅提升安装速度：
+
+**安装uv**
+```bash
+# Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**安装VeighNa**
+```bash
+# 安装完整版本（包含UI界面）
+uv pip install vnpy[ui]
+
+# 安装无UI版本（适用于服务器环境）
+uv pip install vnpy
+
+# 安装AI量化版本
+uv pip install vnpy[ui,alpha]
 ```
 
 ## 使用指南
