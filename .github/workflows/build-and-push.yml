@@ -1,11 +1,11 @@
 name: Build and Push Docker Image
 
 env:
-  PROJECT_NAME: TRENDHUNT
+  IMAGE_NAME: vnpy
 
 on:
   push:
-    branches: [main, master, trendhunt]
+    branches: [main, master]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -40,12 +40,12 @@ jobs:
 
       - name: Build Docker image
         run: |
-          IMAGE_BASENAME=$(echo "${{ env.PROJECT_NAME }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME="${{ env.IMAGE_NAME }}"
           TIMESTAMP=$(date -u "+%Y%m%d_%H%M%S")
 
-          docker build -t ${IMAGE_BASENAME}:${TIMESTAMP} -t ${IMAGE_BASENAME}:latest .
+          docker build -t ${IMAGE_NAME}:${TIMESTAMP} -t ${IMAGE_NAME}:latest .
 
-          echo "IMAGE_BASENAME=${IMAGE_BASENAME}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
           echo "IMAGE_TIMESTAMP=${TIMESTAMP}" >> $GITHUB_ENV
 
       - name: Configure Docker for insecure registry
@@ -78,10 +78,10 @@ jobs:
         run: |
           REGISTRY="${{ secrets.GITEA_REGISTRY_URL__INFRA }}"
           USERNAME="${{ secrets.GITEA_USERNAME__INFRA }}"
-          IMAGE_REPOSITORY="${REGISTRY}/${USERNAME}/${IMAGE_BASENAME}"
+          IMAGE_REPOSITORY="${REGISTRY}/${USERNAME}/${IMAGE_NAME}"
 
-          docker tag ${IMAGE_BASENAME}:${IMAGE_TIMESTAMP} ${IMAGE_REPOSITORY}:${IMAGE_TIMESTAMP}
-          docker tag ${IMAGE_BASENAME}:latest ${IMAGE_REPOSITORY}:latest
+          docker tag ${IMAGE_NAME}:${IMAGE_TIMESTAMP} ${IMAGE_REPOSITORY}:${IMAGE_TIMESTAMP}
+          docker tag ${IMAGE_NAME}:latest ${IMAGE_REPOSITORY}:latest
 
           docker push ${IMAGE_REPOSITORY}:${IMAGE_TIMESTAMP}
           docker push ${IMAGE_REPOSITORY}:latest
@@ -92,4 +92,4 @@ jobs:
       #     curl -X POST "${{ secrets.DOKPLOY_API_URL__INFRA }}/compose.deploy" \
       #       -H "x-api-key: ${{ secrets.DOKPLOY_TOKEN__INFRA }}" \
       #       -H "Content-Type: application/json" \
-      #       -d '{"composeId": "${{ secrets[format('WORKER_COMPOSE_ID__{0}', env.PROJECT_NAME)] }}"}'
+      #       -d '{"composeId": "${{ secrets.DOKPLOY_COMPOSE_ID__VNPY }}"}'

@@ -1,0 +1,10 @@
+services:
+  webtrader:
+    build: .
+    image: ${COMPOSE_IMAGE:-vnpy:latest}
+    container_name: ${COMPOSE_CONTAINER_NAME:-vnpy-webtrader}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    volumes:
+      - ${VNTRADER_DATA:-./data/.vntrader}:/home/app/.vntrader
+    restart: unless-stopped
