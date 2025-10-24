@@ -1,0 +1,95 @@
+name: Build and Push Docker Image
+
+env:
+  PROJECT_NAME: TRENDHUNT
+
+on:
+  push:
+    branches: [main, master, trendhunt]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.event.head_commit.author.email != '41898282+github-actions[bot]@users.noreply.github.com'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --no-dev
+
+      - name: Verify project imports
+        run: |
+          uv run python -m compileall vnpy
+
+      - name: Build Docker image
+        run: |
+          IMAGE_BASENAME=$(echo "${{ env.PROJECT_NAME }}" | tr '[:upper:]' '[:lower:]')
+          TIMESTAMP=$(date -u "+%Y%m%d_%H%M%S")
+
+          docker build -t ${IMAGE_BASENAME}:${TIMESTAMP} -t ${IMAGE_BASENAME}:latest .
+
+          echo "IMAGE_BASENAME=${IMAGE_BASENAME}" >> $GITHUB_ENV
+          echo "IMAGE_TIMESTAMP=${TIMESTAMP}" >> $GITHUB_ENV
+
+      - name: Configure Docker for insecure registry
+        if: github.event_name != 'pull_request'
+        run: |
+          REGISTRY="${{ secrets.GITEA_REGISTRY_URL__INFRA }}"
+          sudo mkdir -p /etc/docker
+          echo "{\"insecure-registries\":[\"${REGISTRY}\"]}" | sudo tee /etc/docker/daemon.json >/dev/null
+          sudo systemctl restart docker
+
+      - name: Tailscale
+        if: github.event_name != 'pull_request'
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID__INFRA }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET__INFRA }}
+          tags: tag:ci
+          version: latest
+
+      - name: Login to Gitea Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.GITEA_REGISTRY_URL__INFRA }}
+          username: ${{ secrets.GITEA_USERNAME__INFRA }}
+          password: ${{ secrets.GITEA_TOKEN__INFRA }}
+
+      - name: Tag and push image
+        if: github.event_name != 'pull_request'
+        run: |
+          REGISTRY="${{ secrets.GITEA_REGISTRY_URL__INFRA }}"
+          USERNAME="${{ secrets.GITEA_USERNAME__INFRA }}"
+          IMAGE_REPOSITORY="${REGISTRY}/${USERNAME}/${IMAGE_BASENAME}"
+
+          docker tag ${IMAGE_BASENAME}:${IMAGE_TIMESTAMP} ${IMAGE_REPOSITORY}:${IMAGE_TIMESTAMP}
+          docker tag ${IMAGE_BASENAME}:latest ${IMAGE_REPOSITORY}:latest
+
+          docker push ${IMAGE_REPOSITORY}:${IMAGE_TIMESTAMP}
+          docker push ${IMAGE_REPOSITORY}:latest
+
+      # - name: Deploy to Dokploy
+      #   if: github.event_name != 'pull_request'
+      #   run: |
+      #     curl -X POST "${{ secrets.DOKPLOY_API_URL__INFRA }}/compose.deploy" \
+      #       -H "x-api-key: ${{ secrets.DOKPLOY_TOKEN__INFRA }}" \
+      #       -H "Content-Type: application/json" \
+      #       -d '{"composeId": "${{ secrets[format('WORKER_COMPOSE_ID__{0}', env.PROJECT_NAME)] }}"}'
